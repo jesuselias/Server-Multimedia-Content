@@ -2,8 +2,9 @@ const User = require('../models/User');
 const Content = require('../models/Content');
 const Theme = require('../models/Theme');
 const bcrypt = require('bcryptjs');
-const upload = require('../middlewares/upload');
 const fs = require('fs').promises;
+const path = require('path');
+
 
 const jwt = require('jsonwebtoken'); // Asegúrate de importarlo al inicio de tu archivo
 
@@ -132,53 +133,141 @@ exports.listThemes = async (req, res) => {
   }
 };
 
-  
 exports.createUserContent = async (req, res) => {
   try {
-    console.log('Request body:', req.body);
-    console.log('File:', req.file);
+    const { title, type, themeId, credits, file, videoUrl } = req.body;
+    console.log("req.body",req.body);
 
-    const { title, url, type, themeId, creatorId, credits, videoUrl } = req.body;
-    console.log("creatorId",creatorId)
+    console.log('Datos recibidos:', title, type, themeId, credits, file, videoUrl);
 
-    let content;
-    let imageUrl;
+    if (!type || !['texto', 'imagen', 'video'].includes(type)) {
+      throw new Error(`Tipo de contenido inválido: ${type}`);
+    }
 
-    if (type === 'image' || type === 'text') {
-      if (!req.file) {
-        return res.status(400).json({ message: 'Archivo requerido' });
+    let newContent;
+    let filePath = '';
+    let textContent = '';
+
+    if (type === 'texto') {
+      // Manejo del texto
+      if (!title) {
+        throw new Error('No se proporcionó un título para el texto');
       }
-
-      imageUrl = `/uploads/${req.file.filename}`;
-
-      content = await Content.create({
+      
+      textContent = title; // Asumimos que el título es el contenido del texto
+      
+      newContent = new Content({
         title,
         type,
-        url,
+        imageTextUrl: '',
+        videoUrl: '',
         themeId,
-        creatorId: creatorId,
+        creatorId: req.user.userId,
         credits,
-        imageUrl,
-        file: req.file.buffer // Guarda el buffer del archivo
+        content: textContent
       });
-
-    } else if (type === 'video') {
-      content = await Content.create({
+    } else if (type === 'imagen') {
+      // Manejo de archivos de imagen
+      if (!file || !file.path) {
+        throw new Error('No se encontró un archivo para la imagen');
+      }
+      
+      filePath = file.path;
+      
+      newContent = new Content({
         title,
         type,
+        imageTextUrl: null,
+        videoUrl: '',
         themeId,
-        creatorId: creatorId,
+        creatorId: req.user.userId,
         credits,
-        videoUrl,
+        file: filePath
+      });
+    } else if (type === 'video') {
+      // Manejo de videos YouTube
+      if (!videoUrl) {
+        throw new Error('No se proporcionó una URL de video');
+      }
+      
+      newContent = new Content({
+        title,
+        type,
+        imageTextUrl: '',
+        videoUrl: videoUrl,
+        themeId,
+        creatorId: req.user.userId,
+        credits,
+        file: ''
       });
     }
 
-    res.status(201).json(content);
+    if (!newContent) {
+      throw new Error('Tipo de contenido no válido');
+    }
+
+    await newContent.save();
+
+    res.status(201).json({
+      message: 'Contenido creado con éxito',
+      content: {
+        _id: newContent._id,
+        title: newContent.title,
+        type: newContent.type,
+        themeId: newContent.themeId,
+        creatorId: newContent.creatorId,
+        credits: newContent.credits,
+        ...(newContent.videoUrl ? { videoUrl: newContent.videoUrl } : {}),
+        ...(newContent.file ? { file: newContent.file } : {}),
+        ...(newContent.content ? { content: newContent.content } : {})
+      }
+    });
   } catch (error) {
-    console.error('Error en createUserContent:', error);
-    res.status(500).json({ message: 'Error al crear contenido' });
+    console.error('Error creating user content:', error.message);
+    res.status(400).json({ 
+      message: 'Error al crear contenido',
+      details: error.message
+    });
   }
 };
+
+// exports.createUserContent = async (req, res) => {
+//   try {
+//     const { title, type, themeId, credits } = req.body;
+
+//     // Obtenemos la ruta del archivo subido
+//     const filePath = req.file ? req.file.path : null;
+
+//     const newContent = new Content({
+//       title,
+//       type,
+//       imageTextUrl: filePath ? null : '',
+//       videoUrl: filePath ? '' : null,
+//       themeId,
+//       creatorId: req.user.userId,
+//       credits,
+//       file: filePath // Almacenamos la ruta del archivo en la propiedad 'file'
+//     });
+
+//     const savedContent = await newContent.save();
+
+//     res.status(201).json({
+//       message: 'Contenido creado con éxito',
+//       content: {
+//         _id: savedContent._id,
+//         title: savedContent.title,
+//         type: savedContent.type,
+//         themeId: savedContent.themeId,
+//         creatorId: savedContent.creatorId,
+//         credits: savedContent.credits,
+//         file: savedContent.file
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error creating user content:', error);
+//     res.status(500).json({ message: 'Error al crear contenido' });
+//   }
+// };
 
 exports.searchContents = async (req, res) => {
   const searchTerm = req.query.term.toLowerCase();
@@ -257,6 +346,50 @@ exports.getUserContents = async (req, res) => {
     console.error(error);
     res.status(500).json({ message: 'Error al obtener contenidos del usuario' });
   }
+
+
+exports.getImgContentById = async (req, res) => {
+  try {
+    const contentId = req.params.id;
+    const content = await Content.findById(contentId);
+
+    if (!content) {
+      return res.status(404).json({ message: 'Contenido no encontrado' });
+    }
+
+    // Si el archivo está almacenado como buffer binario
+    if (content.file && typeof content.file === 'object' && content.file.$binary) {
+      const fileBuffer = Buffer.from(content.file.$binary.base64, 'base64');
+      
+      // Determinar el tipo MIME basándonos en la extensión del título
+      const mimeType = content.title.includes('.jpg') ? 'image/jpeg' : 
+                      content.title.includes('.png') ? 'image/png' :
+                      'application/octet-stream';
+
+      res.set("Content-Type", mimeType);
+      res.set("Content-Disposition", `inline; filename="${content.title}"`);
+      return res.send(fileBuffer);
+    } else {
+      // Si el archivo está almacenado como ruta
+      if (content.file) {
+        const filePath = path.join(__dirname, '../../uploads', content.file);
+        
+        try {
+          await fs.access(filePath);
+          return res.sendFile(filePath);
+        } catch (error) {
+          console.error('Error serving file:', error);
+          return res.status(404).send('Archivo no encontrado');
+        }
+      } else {
+        return res.status(404).json({ message: 'Archivo no encontrado' });
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching content:', error);
+    res.status(500).json({ message: 'Error al obtener el contenido' });
+  }
+};
 
 
 };

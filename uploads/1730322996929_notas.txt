@@ -1,0 +1,10 @@
+componente: mf-fenix-transferencia-electronica
+version: build-ci
+RFC:
+Plan producción: http://bamboo.bch.bancodechile.cl:8085/browse/NIPMO-MFFTE-72
+Release: https://bamboo.bch.bancodechile.cl:8443/deploy/viewDeploymentVersion.action?versionId=2087125392&deploymentProjectId=849248258
+Rollback: http://bamboo.bch.bancodechile.cl:8085/deploy/viewDeploymentVersion.action?versionId=2050067457
+Repositorio: http://bitbucket.bch.bancodechile.cl:7990/projects/MNI/repos/mf-fenix-transferencia-electronica/commits
+Orden: 1
+
+/opt/homebrew/opt/postgresql@14/bin/psql -d postgres

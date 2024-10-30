@@ -4,44 +4,34 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs').promises;
-const upload = require('./middlewares/upload');
+
 const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Configurar para servir archivos estáticos desde la raíz
-const staticPath = path.join(__dirname,  '..', 'uploads');
-app.use(express.static(staticPath));
+// // Configurar para servir archivos estáticos desde la raíz
+// const staticPath = path.join(__dirname, 'uploads');
+// app.use(express.static(staticPath));
 
-// Servicio para servir archivos
-app.get('/api/files/uploads/:filename', async (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(staticPath, filename);
+app.use(express.static(path.join(__dirname, 'uploads')));
 
-  console.log(`Intentando acceder a archivo: ${filePath}`);
+// app.get('/api/files/:filename', async (req, res) => {
+//   try {
+//     const filename = req.params.filename;
+//     const filePath = path.join(__dirname, 'uploads', filename);
+    
+//     await fs.access(filePath);
 
-  try {
-    // Verificar si el archivo existe
-    const stats = await fs.stat(filePath);
-    if (!stats.isFile()) {
-      throw new Error('Archivo no encontrado');
-    }
+//     res.sendFile(filePath);
+//   } catch (error) {
+//     console.error('Error serving file:', error);
+//     res.status(404).send('Archivo no encontrado');
+//   }
+// });
 
-    // Determinar el tipo MIME del archivo
-    const mimeType = mime.lookup(filename) || 'application/octet-stream';
-
-    res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    await fs.readFile(filePath, 'buffer');
-    res.end();
-  } catch (err) {
-    console.error(`Error serving file ${filename}:`, err);
-    res.status(err.code === 'ENOENT' ? 404 : 500).send(err.message);
-  }
-});
 
 // Manejo de errores global
 app.use((err, req, res, next) => {
