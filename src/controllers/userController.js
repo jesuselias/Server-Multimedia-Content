@@ -10,7 +10,6 @@ const { promises: fs } = require('fs');
 const jwt = require('jsonwebtoken'); // Asegúrate de importarlo al inicio de tu archivo
 
 
-// En tu API
 exports.getImgById = async (req, res) => {
   try {
     const contentId = req.params.id;
@@ -23,8 +22,10 @@ exports.getImgById = async (req, res) => {
     console.log("Content found:", JSON.stringify(content, null, 2));
 
     // Manejo del archivo binario almacenado como Buffer
-    const mimeType = getMimeTypeFromTitle(content.title);
-    
+    const mimeType = content.title.includes('.jpg') ? 'image/jpeg' : 
+                     content.title.includes('.png') ? 'image/png' :
+                     'application/octet-stream';
+
     res.set("Content-Type", mimeType);
     res.set("Content-Disposition", `inline; filename="${content.title}"`);
     
@@ -35,30 +36,6 @@ exports.getImgById = async (req, res) => {
     res.status(500).json({ message: 'Error al obtener el contenido' });
   }
 };
-
-function getMimeTypeFromTitle(title) {
-  const mimeTypes = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.pdf': 'application/pdf',
-    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    '.txt': 'text/plain',
-    '.csv': 'text/csv',
-    '.json': 'application/json',
-    '.xml': 'application/xml',
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'text/javascript'
-  };
-
-  const ext = '.' + title.split('.').pop();
-  return mimeTypes[ext] || 'image/octet-stream';
-}
 
 
 exports.registerUser = async (req, res) => {
