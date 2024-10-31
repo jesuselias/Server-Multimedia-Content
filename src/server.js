@@ -5,6 +5,8 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs').promises;
 
+const upload = require('./middlewares/upload');
+
 const path = require('path');
 
 const app = express();
@@ -12,26 +14,30 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// // Configurar para servir archivos estáticos desde la raíz
-// const staticPath = path.join(__dirname, 'uploads');
-// app.use(express.static(staticPath));
 
-app.use(express.static(path.join(__dirname, 'uploads')));
+app.use(express.static(path.join(__dirname, '../uploads')));
 
-// app.get('/api/files/:filename', async (req, res) => {
-//   try {
-//     const filename = req.params.filename;
-//     const filePath = path.join(__dirname, 'uploads', filename);
-    
-//     await fs.access(filePath);
+app.get('/download/:filename', (req, res) => {
+  const filename = req.params.filename;
+  res.sendFile(path.join(__dirname, '../uploads/', filename));
+});
 
-//     res.sendFile(filePath);
-//   } catch (error) {
-//     console.error('Error serving file:', error);
-//     res.status(404).send('Archivo no encontrado');
-//   }
-// });
 
+// Assuming you're using Express.js
+app.get('/api/image/:filename', (req, res) => {
+  const filename = req.params.filename;
+  fs.readFile(`uploads/${filename}`, (err, data) => {
+    if (err) {
+      res.status(404).send('File not found');
+    } else {
+      res.contentType('image/jpeg'); // Set appropriate content type based on file extension
+      res.send(data);
+    }
+  });
+});
+
+
+app.use(express.static('uploads')); // Asegúrate de que 'uploads' sea la carpeta donde se guardan las imágenes
 
 // Manejo de errores global
 app.use((err, req, res, next) => {

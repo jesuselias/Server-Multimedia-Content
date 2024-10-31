@@ -2,11 +2,63 @@ const User = require('../models/User');
 const Content = require('../models/Content');
 const Theme = require('../models/Theme');
 const bcrypt = require('bcryptjs');
-const fs = require('fs').promises;
+//const fs = require('fs').promises;
 const path = require('path');
+const { promises: fs } = require('fs');
 
 
 const jwt = require('jsonwebtoken'); // Asegúrate de importarlo al inicio de tu archivo
+
+
+// En tu API
+exports.getImgById = async (req, res) => {
+  try {
+    const contentId = req.params.id;
+    const content = await Content.findById(contentId);
+
+    if (!content || !content.file) {
+      return res.status(404).json({ message: 'Contenido o archivo no encontrado' });
+    }
+
+    console.log("Content found:", JSON.stringify(content, null, 2));
+
+    // Manejo del archivo binario almacenado como Buffer
+    const mimeType = getMimeTypeFromTitle(content.title);
+    
+    res.set("Content-Type", mimeType);
+    res.set("Content-Disposition", `inline; filename="${content.title}"`);
+    
+    // Envía el contenido del archivo
+    return res.send(content.file);
+  } catch (error) {
+    console.error('Error fetching content:', error);
+    res.status(500).json({ message: 'Error al obtener el contenido' });
+  }
+};
+
+function getMimeTypeFromTitle(title) {
+  const mimeTypes = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.txt': 'text/plain',
+    '.csv': 'text/csv',
+    '.json': 'application/json',
+    '.xml': 'application/xml',
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'text/javascript'
+  };
+
+  const ext = '.' + title.split('.').pop();
+  return mimeTypes[ext] || 'image/octet-stream';
+}
 
 
 exports.registerUser = async (req, res) => {
@@ -133,6 +185,8 @@ exports.listThemes = async (req, res) => {
   }
 };
 
+
+
 exports.createUserContent = async (req, res) => {
   try {
     const { title, type, themeId, credits, file, videoUrl } = req.body;
@@ -164,15 +218,16 @@ exports.createUserContent = async (req, res) => {
         themeId,
         creatorId: req.user.userId,
         credits,
-        content: textContent
+        content: textContent,
+        createdAt: new Date() // Usamos la fecha actual al crear el contenido
       });
     } else if (type === 'imagen') {
       // Manejo de archivos de imagen
-      if (!file || !file.path) {
+      if (!req.file || !req.file.path ) {
         throw new Error('No se encontró un archivo para la imagen');
       }
       
-      filePath = file.path;
+      const filePath = req.file ? req.file.path : null;
       
       newContent = new Content({
         title,
@@ -182,7 +237,8 @@ exports.createUserContent = async (req, res) => {
         themeId,
         creatorId: req.user.userId,
         credits,
-        file: filePath
+        file: filePath,
+        createdAt: new Date() // Usamos la fecha actual al crear el contenido
       });
     } else if (type === 'video') {
       // Manejo de videos YouTube
@@ -198,7 +254,7 @@ exports.createUserContent = async (req, res) => {
         themeId,
         creatorId: req.user.userId,
         credits,
-        file: ''
+        createdAt: new Date() // Usamos la fecha actual al crear el contenido
       });
     }
 
@@ -207,6 +263,9 @@ exports.createUserContent = async (req, res) => {
     }
 
     await newContent.save();
+
+    // Aseguramos que siempre tenemos una fecha válida
+    const createdAt = newContent.createdAt ? newContent.createdAt.toISOString() : null;
 
     res.status(201).json({
       message: 'Contenido creado con éxito',
@@ -220,7 +279,8 @@ exports.createUserContent = async (req, res) => {
         ...(newContent.videoUrl ? { videoUrl: newContent.videoUrl } : {}),
         ...(newContent.file ? { file: newContent.file } : {}),
         ...(newContent.content ? { content: newContent.content } : {})
-      }
+      },
+      createdAt: createdAt
     });
   } catch (error) {
     console.error('Error creating user content:', error.message);
@@ -321,9 +381,9 @@ exports.searchThemes = async (req, res) => {
 exports.getContentTotals = async (req, res) => {
   try {
     const totalContents = await Content.countDocuments();
-    const imagesCount = await Content.countDocuments({ type: 'image' });
+    const imagesCount = await Content.countDocuments({ type: 'imagen' });
     const videosCount = await Content.countDocuments({ type: 'video' });
-    const textsCount = await Content.countDocuments({ type: 'text' });
+    const textsCount = await Content.countDocuments({ type: 'texto' });
 
     res.json({
       total: totalContents,
@@ -346,50 +406,6 @@ exports.getUserContents = async (req, res) => {
     console.error(error);
     res.status(500).json({ message: 'Error al obtener contenidos del usuario' });
   }
-
-
-exports.getImgContentById = async (req, res) => {
-  try {
-    const contentId = req.params.id;
-    const content = await Content.findById(contentId);
-
-    if (!content) {
-      return res.status(404).json({ message: 'Contenido no encontrado' });
-    }
-
-    // Si el archivo está almacenado como buffer binario
-    if (content.file && typeof content.file === 'object' && content.file.$binary) {
-      const fileBuffer = Buffer.from(content.file.$binary.base64, 'base64');
-      
-      // Determinar el tipo MIME basándonos en la extensión del título
-      const mimeType = content.title.includes('.jpg') ? 'image/jpeg' : 
-                      content.title.includes('.png') ? 'image/png' :
-                      'application/octet-stream';
-
-      res.set("Content-Type", mimeType);
-      res.set("Content-Disposition", `inline; filename="${content.title}"`);
-      return res.send(fileBuffer);
-    } else {
-      // Si el archivo está almacenado como ruta
-      if (content.file) {
-        const filePath = path.join(__dirname, '../../uploads', content.file);
-        
-        try {
-          await fs.access(filePath);
-          return res.sendFile(filePath);
-        } catch (error) {
-          console.error('Error serving file:', error);
-          return res.status(404).send('Archivo no encontrado');
-        }
-      } else {
-        return res.status(404).json({ message: 'Archivo no encontrado' });
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching content:', error);
-    res.status(500).json({ message: 'Error al obtener el contenido' });
-  }
-};
 
 
 };
