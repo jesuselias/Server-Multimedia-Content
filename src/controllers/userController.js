@@ -3,8 +3,11 @@ const Content = require('../models/Content');
 const Theme = require('../models/Theme');
 const bcrypt = require('bcryptjs');
 //const fs = require('fs').promises;
+// const path = require('path');
+// const { promises: fs } = require('fs');
+
+const fs = require('fs').promises;
 const path = require('path');
-const { promises: fs } = require('fs');
 
 
 const jwt = require('jsonwebtoken'); // Asegúrate de importarlo al inicio de tu archivo
@@ -19,18 +22,9 @@ exports.getImgById = async (req, res) => {
       return res.status(404).json({ message: 'Contenido o archivo no encontrado' });
     }
 
-    console.log("Content found:", JSON.stringify(content, null, 2));
+   
 
-    // Manejo del archivo binario almacenado como Buffer
-    const mimeType = content.title.includes('.jpg') ? 'image/jpeg' : 
-                     content.title.includes('.png') ? 'image/png' :
-                     'application/octet-stream';
-
-    res.set("Content-Type", mimeType);
-    res.set("Content-Disposition", `inline; filename="${content.title}"`);
-    
-    // Envía el contenido del archivo
-    return res.send(content.file);
+    res.json({ image: content.file });
   } catch (error) {
     console.error('Error fetching content:', error);
     res.status(500).json({ message: 'Error al obtener el contenido' });
@@ -121,15 +115,10 @@ exports.loginUser = async (req, res) => {
 
 exports.getUserProfile = async (req, res) => {
   try {
-    console.log('Request received:', req.method, req.url);
-    console.log("req", req.user.userId);
     const userId = req.user.userId;
-    console.log("userId", userId);
 
     // Buscar todos los creadores
     const creators = await User.find({ role: 'Creador' }).select('_id username email role');
-
-    console.log('Creators found:', creators);
 
     let contents = [];
 
@@ -167,9 +156,7 @@ exports.listThemes = async (req, res) => {
 exports.createUserContent = async (req, res) => {
   try {
     const { title, type, themeId, credits, file, videoUrl } = req.body;
-    console.log("req.body",req.body);
 
-    console.log('Datos recibidos:', title, type, themeId, credits, file, videoUrl);
 
     if (!type || !['texto', 'imagen', 'video'].includes(type)) {
       throw new Error(`Tipo de contenido inválido: ${type}`);
@@ -199,12 +186,25 @@ exports.createUserContent = async (req, res) => {
         createdAt: new Date() // Usamos la fecha actual al crear el contenido
       });
     } else if (type === 'imagen') {
+
+      console.log("file",file)
+
+      console.log("req.file",req.file)
       // Manejo de archivos de imagen
-      if (!req.file || !req.file.path ) {
+      if (!file) {
         throw new Error('No se encontró un archivo para la imagen');
       }
       
-      const filePath = req.file ? req.file.path : null;
+     // const filePath = req.file ? req.file.path : null;
+
+     console.log('req.file:', req.file);
+//console.log('req.file.buffer:', req.file.buffer);
+
+//const filePath = req.file.path;
+//const fileData = await fs.readFile(filePath);
+
+// Convertir el archivo completo a base64
+//const base64Image = `data:image/png;base64,${fileData.toString('base64')}`;
       
       newContent = new Content({
         title,
@@ -214,7 +214,7 @@ exports.createUserContent = async (req, res) => {
         themeId,
         creatorId: req.user.userId,
         credits,
-        file: filePath,
+        file,
         createdAt: new Date() // Usamos la fecha actual al crear el contenido
       });
     } else if (type === 'video') {

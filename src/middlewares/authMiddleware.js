@@ -16,10 +16,6 @@ function authenticateToken(req, res, next) {
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
       if (err) return res.sendStatus(403);
 
-      console.log("user",user)
-      console.log("user.role",user.role)
-
-      console.log("user.role",user.role)
       
       if (!user.role) {
         return res.status(500).json({ message: 'No role found in token' });
@@ -33,8 +29,7 @@ function authenticateToken(req, res, next) {
 
   function authorize(role) {
     return function(req, res, next) {
-      console.log("User:", req.user);
-      console.log("role:", req.user.role || []);
+
   
       if (!req.user) return res.status(401).json({ message: 'Unauthorized: No user found' });
   

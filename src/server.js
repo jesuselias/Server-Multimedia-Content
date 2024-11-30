@@ -5,11 +5,21 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs').promises;
 
-const upload = require('./middlewares/upload');
+// const upload = multer({dest: '../uploads'})
+
+
+
+//const upload = require('./middlewares/upload');
 
 const path = require('path');
 
 const app = express();
+
+// app.post('/images/single', upload.single('imagenTest'), (req,res) => {
+//   res.send('termina');
+  
+// });
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

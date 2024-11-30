@@ -4,7 +4,9 @@ const userController = require('../controllers/userController');
 const loginController = require('../controllers/loginController');
 const { authenticateToken, authorize } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
+// const multer = require('multer')
 
+// const upload = multer({dest: 'uploads/'})
 
 
 router.get('/img-content/:id', userController.getImgById);
