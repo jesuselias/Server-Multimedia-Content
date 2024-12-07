@@ -2,12 +2,15 @@ const User = require('../models/User');
 const Content = require('../models/Content');
 const Theme = require('../models/Theme');
 const bcrypt = require('bcryptjs');
+const fs = require('fs').promises;
+const path = require('path');
+const mime = require('mime-types');
+
 //const fs = require('fs').promises;
 // const path = require('path');
 // const { promises: fs } = require('fs');
 
-const fs = require('fs').promises;
-const path = require('path');
+
 
 
 const jwt = require('jsonwebtoken'); // Asegúrate de importarlo al inicio de tu archivo
@@ -18,19 +21,80 @@ exports.getImgById = async (req, res) => {
     const contentId = req.params.id;
     const content = await Content.findById(contentId);
 
-    if (!content || !content.file) {
+    console.log("content",content)
+
+    if (!content || !content.image) {
       return res.status(404).json({ message: 'Contenido o archivo no encontrado' });
     }
 
    
 
-    res.json({ image: content.file });
+    res.json({ image: content.image });
   } catch (error) {
     console.error('Error fetching content:', error);
     res.status(500).json({ message: 'Error al obtener el contenido' });
   }
 };
 
+exports.downloadContent = async (req, res) => {
+  try {
+    const contentId = req.params.id;
+    console.log('Attempting to download content with ID:', contentId);
+
+    const content = await Content.findById(contentId);
+
+    if (!content) {
+      console.log('Content not found for ID:', contentId);
+      return res.status(404).json({ message: 'Contenido no encontrado' });
+    }
+
+    if (!content.file) {
+      console.log('No file associated with content ID:', contentId);
+      return res.status(404).json({ message: 'Archivo no encontrado para este contenido' });
+    }
+
+    // Construct the file path correctly
+    const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+    const filePath = path.join(uploadsDir, content.file);
+    console.log('File path:', filePath);
+
+    try {
+      await fs.access(filePath);
+    } catch (error) {
+      console.log('File not found at path:', filePath);
+      return res.status(404).json({ message: 'Archivo no encontrado en el servidor', details: error.message });
+    }
+
+    const mimeType = mime.lookup(filePath);
+    console.log('Mime type:', mimeType);
+
+    if (!mimeType) {
+      console.log('Unable to determine MIME type');
+      return res.status(500).json({ message: 'No se pudo determinar el tipo MIME del archivo' });
+    }
+
+    console.log("mimeType",mimeType)
+
+    if (mimeType.includes('video')) {
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`); // Para videos se muestra en el navegador
+    } else {
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`); // Para otros tipos de archivos se descarga
+    }
+
+  
+
+    // Use fs.createReadStream with promises
+    const fileStream = await fs.readFile(filePath);
+    
+    // Pipe the stream to the response
+    res.end(fileStream);
+  } catch (error) {
+    console.error('Error downloading content:', error);
+    res.status(500).json({ message: 'Error al descargar el contenido', details: error.message });
+  }
+};
 
 exports.registerUser = async (req, res) => {
   try {
@@ -155,10 +219,9 @@ exports.listThemes = async (req, res) => {
 
 exports.createUserContent = async (req, res) => {
   try {
-    const { title, type, themeId, credits, file, videoUrl } = req.body;
+    const { title, type, themeId, credits, image, file, videoUrl } = req.body;
 
-
-    if (!type || !['texto', 'imagen', 'video'].includes(type)) {
+    if (!type || !['archivo', 'imagen', 'video'].includes(type)) {
       throw new Error(`Tipo de contenido inválido: ${type}`);
     }
 
@@ -166,14 +229,32 @@ exports.createUserContent = async (req, res) => {
     let filePath = '';
     let textContent = '';
 
-    if (type === 'texto') {
-      // Manejo del texto
+    if (type === 'archivo') {
       if (!title) {
-        throw new Error('No se proporcionó un título para el texto');
+        throw new Error('No se proporcionó un título para el archivo');
       }
       
-      textContent = title; // Asumimos que el título es el contenido del texto
+      if (req.file) {
+        filePath = path.basename(req.file.path);
+        console.log("filePath",filePath)
+        const mimeType = req.file.mimetype;
+        console.log("filePath",filePath)
+        console.log("mimeType",mimeType)
+
+       if (mimeType.startsWith('text/') || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          const fileBuffer = await fs.readFile(filePath);
+          console.log("fileBuffer",fileBuffer)
+          textContent = fileBuffer.toString();
+        } else {
+          textContent = null;
+        }
+      } else {
+        textContent = title;
+      }
+
+     
       
+
       newContent = new Content({
         title,
         type,
@@ -183,55 +264,39 @@ exports.createUserContent = async (req, res) => {
         creatorId: req.user.userId,
         credits,
         content: textContent,
-        createdAt: new Date() // Usamos la fecha actual al crear el contenido
+        file: filePath,
+        createdAt: new Date()
       });
     } else if (type === 'imagen') {
-
-      console.log("file",file)
-
-      console.log("req.file",req.file)
-      // Manejo de archivos de imagen
-      if (!file) {
+      if (!image) {
         throw new Error('No se encontró un archivo para la imagen');
       }
-      
-     // const filePath = req.file ? req.file.path : null;
 
-     console.log('req.file:', req.file);
-//console.log('req.file.buffer:', req.file.buffer);
-
-//const filePath = req.file.path;
-//const fileData = await fs.readFile(filePath);
-
-// Convertir el archivo completo a base64
-//const base64Image = `data:image/png;base64,${fileData.toString('base64')}`;
-      
       newContent = new Content({
         title,
         type,
-        imageTextUrl: null,
+        image,
         videoUrl: '',
         themeId,
         creatorId: req.user.userId,
         credits,
-        file,
-        createdAt: new Date() // Usamos la fecha actual al crear el contenido
+        file: req.file ? req.file.filename : null,
+        createdAt: new Date()
       });
     } else if (type === 'video') {
-      // Manejo de videos YouTube
       if (!videoUrl) {
         throw new Error('No se proporcionó una URL de video');
       }
-      
+
       newContent = new Content({
         title,
         type,
-        imageTextUrl: '',
+        image: '',
         videoUrl: videoUrl,
         themeId,
         creatorId: req.user.userId,
         credits,
-        createdAt: new Date() // Usamos la fecha actual al crear el contenido
+        createdAt: new Date()
       });
     }
 
@@ -241,7 +306,6 @@ exports.createUserContent = async (req, res) => {
 
     await newContent.save();
 
-    // Aseguramos que siempre tenemos una fecha válida
     const createdAt = newContent.createdAt ? newContent.createdAt.toISOString() : null;
 
     res.status(201).json({
@@ -254,6 +318,7 @@ exports.createUserContent = async (req, res) => {
         creatorId: newContent.creatorId,
         credits: newContent.credits,
         ...(newContent.videoUrl ? { videoUrl: newContent.videoUrl } : {}),
+        ...(newContent.image ? { image: newContent.image } : {}),
         ...(newContent.file ? { file: newContent.file } : {}),
         ...(newContent.content ? { content: newContent.content } : {})
       },
@@ -360,7 +425,7 @@ exports.getContentTotals = async (req, res) => {
     const totalContents = await Content.countDocuments();
     const imagesCount = await Content.countDocuments({ type: 'imagen' });
     const videosCount = await Content.countDocuments({ type: 'video' });
-    const textsCount = await Content.countDocuments({ type: 'texto' });
+    const textsCount = await Content.countDocuments({ type: 'archivo' });
 
     res.json({
       total: totalContents,

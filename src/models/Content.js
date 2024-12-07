@@ -8,7 +8,7 @@ const contentSchema = new mongoose.Schema({
   themeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Theme' },
   creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   credits: String,
-  file: String, // Agrega este campo
+  file: { type: String }, // Change this line
   createdAt: { type: Date, default: Date.now }
 });
 

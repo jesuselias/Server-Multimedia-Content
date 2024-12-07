@@ -11,10 +11,9 @@ const upload = multer({
       cb(null, `${Date.now()}_${file.originalname}`);
     }
   }),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
   fileFilter: (req, file, cb) => {
-    if (!file.originalname.match(/\.(jpg|jpeg|png|pdf|docx|txt)$/i)) {
-      return cb(new Error('Solo se permiten archivos JPG, JPEG, PNG, PDF, DOCX y TXT'));
+    if (!file.originalname.match(/\.(jpg|jpeg|png|pdf|docx|txt|mp4|mp3)$/i)) {
+      return cb(new Error('Solo se permiten archivos JPG, JPEG, PNG, PDF, DOCX, TXT, MP4 y MP3'));
     }
     cb(undefined, true);
   }

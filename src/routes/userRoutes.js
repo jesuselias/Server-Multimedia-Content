@@ -11,6 +11,8 @@ const upload = require('../middlewares/upload');
 
 router.get('/img-content/:id', userController.getImgById);
 
+router.get('/download-content/:id', userController.downloadContent);
+
 router.post('/register', userController.registerUser);
 
 router.post('/login', loginController.loginUser);
