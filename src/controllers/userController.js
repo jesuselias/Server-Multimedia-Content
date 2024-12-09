@@ -235,24 +235,19 @@ exports.createUserContent = async (req, res) => {
       }
       
       if (req.file) {
+        console.log("req.file",req.file)
         filePath = path.basename(req.file.path);
         console.log("filePath",filePath)
         const mimeType = req.file.mimetype;
         console.log("filePath",filePath)
         console.log("mimeType",mimeType)
 
-       if (mimeType.startsWith('text/') || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-          const fileBuffer = await fs.readFile(filePath);
-          console.log("fileBuffer",fileBuffer)
-          textContent = fileBuffer.toString();
-        } else {
-          textContent = null;
-        }
+
       } else {
-        textContent = title;
+        console.log("no es file")
       }
 
-     
+      console.log("por aca 4")
       
 
       newContent = new Content({
@@ -263,7 +258,6 @@ exports.createUserContent = async (req, res) => {
         themeId,
         creatorId: req.user.userId,
         credits,
-        content: textContent,
         file: filePath,
         createdAt: new Date()
       });
