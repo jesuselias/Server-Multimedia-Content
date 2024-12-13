@@ -18,7 +18,10 @@ router.post('/register', userController.registerUser);
 router.post('/login', loginController.loginUser);
 
 router.get('/profile', authenticateToken, authorize(['Admin', 'Creador']), userController.getUserProfile);
+
 router.post('/contents', authenticateToken, authorize(['Admin','Creador']), upload.single('file'), userController.createUserContent);
+
+router.get('/contentsTotal', authenticateToken, userController.getAllContents);
 
 router.get('/contents', authenticateToken, authorize(['Admin', 'Creador', 'Lector']), userController.getUserContents);
 

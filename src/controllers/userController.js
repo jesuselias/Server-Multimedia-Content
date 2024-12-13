@@ -253,7 +253,7 @@ exports.createUserContent = async (req, res) => {
       newContent = new Content({
         title,
         type,
-        imageTextUrl: '',
+        image,
         videoUrl: '',
         themeId,
         creatorId: req.user.userId,
@@ -266,6 +266,19 @@ exports.createUserContent = async (req, res) => {
         throw new Error('No se encontró un archivo para la imagen');
       }
 
+      if (req.file) {
+        console.log("req.file",req.file)
+        filePath = path.basename(req.file.path);
+        console.log("filePath",filePath)
+        const mimeType = req.file.mimetype;
+        console.log("filePath",filePath)
+        console.log("mimeType",mimeType)
+
+
+      } else {
+        console.log("no es file")
+      }
+
       newContent = new Content({
         title,
         type,
@@ -274,7 +287,7 @@ exports.createUserContent = async (req, res) => {
         themeId,
         creatorId: req.user.userId,
         credits,
-        file: req.file ? req.file.filename : null,
+        file: req.file ? filePath : null,
         createdAt: new Date()
       });
     } else if (type === 'video') {
@@ -369,13 +382,18 @@ exports.searchContents = async (req, res) => {
   const searchTerm = req.query.term.toLowerCase();
 
   try {
+    // Buscar contenido en título, descripción y créditos
     const contents = await Content.find({
       $or: [
         { title: { $regex: searchTerm, $options: 'i' } },
+        { description: { $regex: searchTerm, $options: 'i' } },
         { credits: { $regex: searchTerm, $options: 'i' } }
       ]
-    }).select('title credits themeId');
+    });
 
+    console.log("Contenidos encontrados:", contents);
+
+    // Devolver los resultados
     res.json(contents);
   } catch (error) {
     console.error('Error searching contents:', error);
@@ -432,6 +450,16 @@ exports.getContentTotals = async (req, res) => {
     res.status(500).json({ message: 'Error al obtener totales de contenidos' });
   }
 };
+
+exports.getAllContents = async (req, res) => {
+  try {
+    const contents = await Content.find();
+    res.json(contents);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al obtener todos los contenidos' });
+  }
+}
 
 
 exports.getUserContents = async (req, res) => {
